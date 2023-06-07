@@ -23,6 +23,7 @@ namespace Blog.Controllers
         private readonly CommentRepo _commentRepo;
         private readonly IConfiguration _configuration;
         private readonly IWebHostEnvironment _webHostEnvironment;
+
         public UserController(UserRepo userRepo, LikeRepo likeRepo, CommentRepo commentRepo, IConfiguration configuration, IWebHostEnvironment webHostEnvironment)
         {
             _userRepo = userRepo;
@@ -35,15 +36,26 @@ namespace Blog.Controllers
         [HttpGet("getUsers")]
         public async Task<ActionResult> GetUsers()
         {
-            var users = await _userRepo.GetUsers();
-
-            if (users.Count > 0)
+            if (Request.Cookies.TryGetValue("AuthToken", out string AuthToken))
             {
-                return Ok(new { status = "success", data = users });
+                // Thực hiện xác thực JWT ở đây nếu cần thiết
+
+                // Xử lý logic để lấy danh sách người dùng
+                var users = await _userRepo.GetUsers();
+
+                if (users.Count > 0)
+                {
+                    return Ok(new { status = "success", data = users });
+                }
+                else
+                {
+                    return Ok(new { status = true, data = new int[] { } });
+                }
             }
             else
             {
-                return Ok(new { status = true, data = new int[] { } });
+                // Cookie không tồn tại trong yêu cầu, xử lý logic phù hợp
+                return BadRequest(new { status = false, message = "Unauthorized access" });
             }
         }
 
@@ -88,8 +100,30 @@ namespace Blog.Controllers
             {
                 var findUser = await _userRepo.findUserWithEmail(user.email);
 
+                if (findUser.countLogin == 3)
+                {
+                    return StatusCode(400, new { status = false, message = "Your account has been locked, please contact the administrator for more details" });
+                }
+
+                if (findUser.limitLogin == 5)
+                {
+                    Timer timer = new Timer(async state =>
+                    {
+                        await _userRepo.updateLimitLoginZero(findUser.Id.ToString());
+
+                        await _userRepo.updateCoutLogin(findUser.Id.ToString());
+
+                    }, null, TimeSpan.FromMinutes(5), TimeSpan.FromMilliseconds(-1));
+
+                    Console.WriteLine("End");
+
+                    return StatusCode(400, new { status = false, message = "Your account has been locked for 5 minutes, please try again later" });
+                }
+
                 if (findUser is null)
                 {
+                    await _userRepo.updateLimitLogin(findUser.Id.ToString());
+
                     return NotFound(new { status = false, message = "Email Not Found" });
                 }
 
@@ -107,12 +141,26 @@ namespace Blog.Controllers
                     var signIn = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
                     var token = new JwtSecurityToken(_configuration["Jwt:Issuer"], _configuration["Jwt:Audience"], claims, expires: DateTime.UtcNow.AddDays(1), signingCredentials: signIn);
 
+                    // Create a cookie
+                    var cookieOptions = new CookieOptions
+                    {
+                        Expires = DateTime.UtcNow.AddDays(1),
+                        HttpOnly = true,
+                        Secure = true, // Set to true if using HTTPS
+                        SameSite = SameSiteMode.Strict
+                    };
+
+                    Response.Cookies.Append("AuthToken", new JwtSecurityTokenHandler().WriteToken(token), cookieOptions);
+
                     return Ok(new { status = true, data = new JwtSecurityTokenHandler().WriteToken(token) });
                 }
                 else
                 {
+                    await _userRepo.updateLimitLogin(findUser.Id.ToString());
+
                     return BadRequest(new { status = false, message = "Invalid crendentials" });
                 }
+
             }
             else
             {

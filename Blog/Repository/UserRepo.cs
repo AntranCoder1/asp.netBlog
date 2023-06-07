@@ -85,5 +85,31 @@ namespace Blog.Repository
             return await _userCollection.Find(filter).FirstOrDefaultAsync();
         }
 
+        public async Task updateLimitLogin(string userId)
+        {
+            var filter = Builders<UserModel>.Filter.Eq(user => user.Id, new ObjectId(userId));
+
+            var updateDefinition = Builders<UserModel>.Update.Inc(x => x.limitLogin, 1);
+
+            await _userCollection.UpdateOneAsync(filter, updateDefinition);
+        }
+
+        public async Task updateLimitLoginZero(string userId)
+        {
+            var filter = Builders<UserModel>.Filter.Eq(user => user.Id, new ObjectId(userId));
+
+            var updateDefinition = Builders<UserModel>.Update.Set(user => user.limitLogin, 0);
+
+            await _userCollection.UpdateOneAsync(filter, updateDefinition);
+        }
+
+        public async Task updateCoutLogin(string userId)
+        {
+            var filter = Builders<UserModel>.Filter.Eq(user => user.Id, new ObjectId(userId));
+
+            var updateDefinition = Builders<UserModel>.Update.Set(user => user.countLogin, 1);
+
+            await _userCollection.UpdateOneAsync(filter, updateDefinition);
+        }
     }
 }

@@ -28,11 +28,19 @@ namespace Blog.Models
 
         [BsonElement("verify_token")]
         [JsonPropertyName("verify_token")]
-        public string? verify_token { get; set; } = null!;
+        public string? verify_token { get; set; } = "";
 
         [BsonElement("verify_code")]
         [JsonPropertyName("verify_code")]
-        public int? verify_code { get; set; } = null!;
+        public int? verify_code { get; set; } = 0!;
+
+        [BsonElement("limitLogin")]
+        [JsonPropertyName("limitLogin")]
+        public int? limitLogin { get; set; } = 0!;
+
+        [BsonElement("countLogin")]
+        [JsonPropertyName("countLogin")]
+        public int? countLogin { get; set; } = 0!;
 
         public DateTime? createdAt { get; set; } = DateTime.Now;
         public DateTime? updatedAt { get; set; } = DateTime.Now;

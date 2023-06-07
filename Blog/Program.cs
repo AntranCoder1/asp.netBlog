@@ -48,6 +48,7 @@ builder.Services.AddSingleton<UserRepo>();
 builder.Services.AddSingleton<PostRepo>();
 builder.Services.AddSingleton<LikeRepo>();
 builder.Services.AddSingleton<CommentRepo>();
+builder.Services.AddSingleton<CategoriesRepo>();
 
 // jwt
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>

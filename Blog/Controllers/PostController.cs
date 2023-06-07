@@ -76,31 +76,39 @@ namespace Blog.Controllers
         [HttpGet("getPosts/{limit}/{page}")]
         public async Task<ActionResult> GetPosts(string limit, string page)
         {
-            var Limit = int.Parse(limit);
-            var Page = int.Parse(page);
-
-            var posts = await _postRepo.GetPostsPagination(Limit, Page);
-
-            if (posts.Count > 0)
+            if (Request.Cookies.TryGetValue("AuthToken", out string AuthToken))
             {
-                var convertedPosts = posts.Select(p => new
-                {
-                    Id = p.Id.ToString(),
-                    title = p.Title,
-                    description = p.Description,
-                    view = p.View,
-                    like = p.Like,
-                    image = p.Image,
-                    UserId = p.UserId.ToString(),
-                    CreatedAt = p.CreatedAt,
-                    UpdatedAt = p.UpdatedAt
-                }).ToList();
 
-                return Ok(new { status = "success", data = convertedPosts });
+                var Limit = int.Parse(limit);
+                var Page = int.Parse(page);
+
+                var posts = await _postRepo.GetPostsPagination(Limit, Page);
+
+                if (posts.Count > 0)
+                {
+                    var convertedPosts = posts.Select(p => new
+                    {
+                        Id = p.Id.ToString(),
+                        title = p.Title,
+                        description = p.Description,
+                        view = p.View,
+                        like = p.Like,
+                        image = p.Image,
+                        UserId = p.UserId.ToString(),
+                        CreatedAt = p.CreatedAt,
+                        UpdatedAt = p.UpdatedAt
+                    }).ToList();
+
+                    return Ok(new { status = "success", data = convertedPosts });
+                }
+                else
+                {
+                    return Ok(new { status = true, data = new int[] { } });
+                }
             }
             else
             {
-                return Ok(new { status = true, data = new int[] { } });
+                return BadRequest(new { status = false, message = "Unauthorized access" });
             }
         }
 
