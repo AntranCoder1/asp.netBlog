@@ -49,6 +49,7 @@ builder.Services.AddSingleton<PostRepo>();
 builder.Services.AddSingleton<LikeRepo>();
 builder.Services.AddSingleton<CommentRepo>();
 builder.Services.AddSingleton<CategoriesRepo>();
+builder.Services.AddSingleton<BookingRepo>();
 
 // jwt
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
@@ -66,6 +67,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 });
 
 builder.Services.AddAuthorization();
+
+// thêm log
+builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
 
 // Thêm CORS middleware vào pipeline
 builder.Services.AddCors();

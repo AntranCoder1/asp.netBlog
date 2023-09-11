@@ -11,5 +11,10 @@
         public string newPassword { get; set; }
         public string oldPassword { get; set; }
         public string comfirmPassword { get; set; }
+        public int isAdmin { get; set; }
+        public int registerVerifyCode { get; set; }
+        public int confirmVerifyCode { get; set; }
+        public int skip { get; set; }
+        public int limit { get; set; }
     }
 }

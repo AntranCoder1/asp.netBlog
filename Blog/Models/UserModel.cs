@@ -42,6 +42,19 @@ namespace Blog.Models
         [JsonPropertyName("countLogin")]
         public int? countLogin { get; set; } = 0!;
 
+
+        [BsonElement("isAdmin")]
+        [JsonPropertyName("isAdmin")]
+        public int? isAdmin { get; set; } = 0!;
+
+        [BsonElement("registerVerifyCode")]
+        [JsonPropertyName("registerVerifyCode")]
+        public int registerVerifyCode { get; set; } = 0!;
+
+        [BsonElement("confirmVerifyCode")]
+        [JsonPropertyName("confirmVerifyCode")]
+        public int confirmVerifyCode { get; set; } = 0!;
+
         public DateTime? createdAt { get; set; } = DateTime.Now;
         public DateTime? updatedAt { get; set; } = DateTime.Now;
     }

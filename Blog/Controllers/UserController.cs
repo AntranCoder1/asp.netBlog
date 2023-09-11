@@ -23,17 +23,19 @@ namespace Blog.Controllers
         private readonly CommentRepo _commentRepo;
         private readonly IConfiguration _configuration;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly ILogger<UserController> _logger;
 
-        public UserController(UserRepo userRepo, LikeRepo likeRepo, CommentRepo commentRepo, IConfiguration configuration, IWebHostEnvironment webHostEnvironment)
+        public UserController(UserRepo userRepo, LikeRepo likeRepo, CommentRepo commentRepo, IConfiguration configuration, IWebHostEnvironment webHostEnvironment, ILogger<UserController> logger)
         {
             _userRepo = userRepo;
             _likeRepo = likeRepo;
             _commentRepo = commentRepo;
             _configuration = configuration;
             _webHostEnvironment = webHostEnvironment;
+            _logger = logger;
         }
 
-        [HttpGet("getUsers")]
+        [HttpPost("getUsers")]
         public async Task<ActionResult> GetUsers()
         {
             if (Request.Cookies.TryGetValue("AuthToken", out string AuthToken))
@@ -41,7 +43,17 @@ namespace Blog.Controllers
                 // Thực hiện xác thực JWT ở đây nếu cần thiết
 
                 // Xử lý logic để lấy danh sách người dùng
-                var users = await _userRepo.GetUsers();
+
+                string rawContent = string.Empty;
+                using (var reader = new StreamReader(Request.Body,
+                              encoding: Encoding.UTF8, detectEncodingFromByteOrderMarks: false))
+                {
+                    rawContent = await reader.ReadToEndAsync();
+                }
+
+                UserValue user = JsonConvert.DeserializeObject<UserValue>(rawContent);
+
+                var users = await _userRepo.FindUsers(user);
 
                 if (users.Count > 0)
                 {
@@ -60,7 +72,7 @@ namespace Blog.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register()
+        public async Task<IActionResult> Register([FromServices] IConfiguration configuration)
         {
             string rawContent = string.Empty;
             using (var reader = new StreamReader(Request.Body,
@@ -71,15 +83,33 @@ namespace Blog.Controllers
 
             UserValue user = JsonConvert.DeserializeObject<UserValue>(rawContent);
 
-            UserModel userModel = new UserModel
+            if (user.email != null && user.password != null)
             {
-                username = user.username,
-                email = user.email,
-                password = BCrypt.Net.BCrypt.HashPassword(user.password),
-                image = user.image
-            };
+                // send mail
 
-            await _userRepo.createUser(userModel);
+                var verifyCode = GenerateCode.VerifyCode();
+
+                // - content email
+                var emailContent = new EmailContent(user.username, verifyCode);
+                var emailMessage = emailContent.GenerateEmailContent();
+
+                var email = new Email();
+                await email.SendEmailAsync(user.email, "Complete Registration", emailMessage);
+
+                UserModel userModel = new UserModel
+                {
+                    username = user.username,
+                    email = user.email,
+                    password = BCrypt.Net.BCrypt.HashPassword(user.password),
+                    image = user.image,
+                    isAdmin = user.isAdmin != 0 ? user.isAdmin : 0,
+                    registerVerifyCode = int.Parse(verifyCode),
+                    confirmVerifyCode = 0
+                };
+
+                await _userRepo.createUser(userModel);
+
+            }
 
             return Ok(new { status = "success" });
         }
@@ -96,35 +126,44 @@ namespace Blog.Controllers
 
             UserValue user = JsonConvert.DeserializeObject<UserValue>(rawContent);
 
+
             if (user != null && user.email != null && user.password != null)
             {
                 var findUser = await _userRepo.findUserWithEmail(user.email);
 
-                if (findUser.countLogin == 3)
+                if (findUser.confirmVerifyCode == 0)
                 {
-                    return StatusCode(400, new { status = false, message = "Your account has been locked, please contact the administrator for more details" });
+                    return StatusCode(404, new { status = false, message = "User not found" });
                 }
 
-                if (findUser.limitLogin == 5)
+                if (findUser != null)
                 {
-                    Timer timer = new Timer(async state =>
+                    if (findUser.countLogin == 3)
                     {
-                        await _userRepo.updateLimitLoginZero(findUser.Id.ToString());
+                        return StatusCode(400, new { status = false, message = "Your account has been locked, please contact the administrator for more details" });
+                    }
 
-                        await _userRepo.updateCoutLogin(findUser.Id.ToString());
+                    if (findUser.limitLogin == 5)
+                    {
+                        Timer timer = new Timer(async state =>
+                        {
+                            await _userRepo.updateLimitLoginZero(findUser.Id.ToString());
 
-                    }, null, TimeSpan.FromMinutes(5), TimeSpan.FromMilliseconds(-1));
+                            await _userRepo.updateCoutLogin(findUser.Id.ToString());
 
-                    Console.WriteLine("End");
+                        }, null, TimeSpan.FromMinutes(5), TimeSpan.FromMilliseconds(-1));
 
-                    return StatusCode(400, new { status = false, message = "Your account has been locked for 5 minutes, please try again later" });
+
+                        return StatusCode(400, new { status = false, message = "Your account has been locked for 5 minutes, please try again later" });
+                    }
                 }
+
 
                 if (findUser is null)
                 {
-                    await _userRepo.updateLimitLogin(findUser.Id.ToString());
+                    //await _userRepo.updateLimitLogin(findUser.Id.ToString());
 
-                    return NotFound(new { status = false, message = "Email Not Found" });
+                    return NotFound(new { status = false, message = "Invalid crendentials" });
                 }
 
                 if (BCrypt.Net.BCrypt.Verify(user.password, findUser.password))
@@ -463,6 +502,47 @@ namespace Blog.Controllers
 
                 return StatusCode(500, new { status = false, message = "An error occurred while find user comment" });
             }
+        }
+
+        [HttpPost("ConfirmRegistration")]
+        public async Task<IActionResult> ConfirmRegistration()
+        {
+            string rawContent = string.Empty;
+            using (var reader = new StreamReader(Request.Body,
+                          encoding: Encoding.UTF8, detectEncodingFromByteOrderMarks: false))
+            {
+                rawContent = await reader.ReadToEndAsync();
+            }
+
+            UserValue user = JsonConvert.DeserializeObject<UserValue>(rawContent);
+
+            var findUserWithRegisterCode = await _userRepo.findUserWithRC(user.registerVerifyCode);
+
+            if (findUserWithRegisterCode != null)
+            {
+                var updateConfirmCode = Task.Run(async () => await _userRepo.updateRegisterCode(findUserWithRegisterCode.confirmVerifyCode));
+                var updateRegistrationCode = Task.Run(async () => await _userRepo.updateRegistrationCode(findUserWithRegisterCode.confirmVerifyCode));
+
+                var delayTask = Task.Delay(TimeSpan.FromSeconds(5));
+
+                var completedTask = await Task.WhenAny(updateConfirmCode, updateRegistrationCode, delayTask);
+
+                if (completedTask == updateConfirmCode && completedTask == updateRegistrationCode)
+                {
+                    return StatusCode(200, new { status = true });
+                }
+                else
+                {
+                    await _userRepo.updateRegistrationCode(findUserWithRegisterCode.confirmVerifyCode);
+
+                    return StatusCode(200, new { status = true });
+                }
+            }
+            else
+            {
+                return StatusCode(500, new { status = false, message = "The verification code is not correct" });
+            }
+
         }
     }
 }
