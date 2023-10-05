@@ -1,4 +1,5 @@
-﻿using Blog.Config;
+﻿using Blog.ClassValue;
+using Blog.Config;
 using Blog.Models;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -21,9 +22,34 @@ namespace Blog.Repository
 
         public async Task createBooking(BookingModel booking) => await _bookingCollection.InsertOneAsync(booking);
 
-        public async Task<List<BookingModel>> findAllBooking()
+        public async Task<List<BookingModel>> findAllBooking(BookingValue bookingValue)
         {
-            return await _bookingCollection.Find(booking => true).ToListAsync();
+            var query = new BsonDocument();
+            if (!string.IsNullOrEmpty(bookingValue.type))
+            {
+                query.Add("type", bookingValue.type);
+            }
+            if (bookingValue.createdAt.HasValue && bookingValue.updatedAt.HasValue)
+            {
+                query.Add("createdAt", new BsonDocument("$gte", bookingValue.createdAt));
+                query.Add("updatedAt", new BsonDocument("$lt", bookingValue.updatedAt));
+            }
+            if (bookingValue.createdAt.HasValue && !bookingValue.updatedAt.HasValue)
+            {
+                query.Add("createdAt", new BsonDocument("$gte", bookingValue.createdAt));
+            }
+            if (!bookingValue.createdAt.HasValue && bookingValue.updatedAt.HasValue) 
+            {
+                query.Add("updatedAt", new BsonDocument("$lt", bookingValue.updatedAt));
+            }
+            var pipeline = new BsonDocument[]
+            {
+                new BsonDocument("$match", new BsonDocument(query))
+            };
+            var result = await _bookingCollection.Aggregate<BookingModel>(pipeline).ToListAsync();
+
+            return result;
+            // return await _bookingCollection.Find(booking => true).ToListAsync();
         }
 
         public async Task<BookingModel> findBookingWithId(string id)
@@ -49,5 +75,25 @@ namespace Blog.Repository
         }
 
         public async Task RemoveBooking(string id) => await _bookingCollection.DeleteOneAsync(booking => booking.Id.ToString() == id);
+
+        public async Task<List<BookingModel>> FindBooking(string type)
+        {
+            try
+            {
+                var pipeline = new BsonDocument[]
+                {
+                    new BsonDocument("$match", new BsonDocument("type", type))
+                };
+
+                var result = await _bookingCollection.Aggregate<BookingModel>(pipeline).ToListAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred while retrieving the booking: {ex}");
+                return null;
+            }
+        }
     }
 }

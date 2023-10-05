@@ -1,8 +1,10 @@
 ﻿using Blog.Config;
 using Blog.Repository;
+using Blog.utils;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Stripe;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,6 +41,15 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// stripe
+builder.Services.Configure<StripeSetting>(
+    builder.Configuration.GetSection("StripeSettings"));
+
+builder.Services.AddScoped<CustomerService>()
+        .AddScoped<ChargeService>()
+        .AddScoped<TokenService>()
+        .AddScoped<StripeAppService, StripeAppService>();
+
 // connect db
 builder.Services.Configure<DatabaseSettings>(
     builder.Configuration.GetSection("BlogDatabase"));
@@ -50,6 +61,7 @@ builder.Services.AddSingleton<LikeRepo>();
 builder.Services.AddSingleton<CommentRepo>();
 builder.Services.AddSingleton<CategoriesRepo>();
 builder.Services.AddSingleton<BookingRepo>();
+builder.Services.AddSingleton<OrderRepo>();
 
 // jwt
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>

@@ -12,5 +12,7 @@
         public string address { get; set; }
         public int quantity_open { get; set; }
         public int quantity_close { get; set; }
+        public DateTime? createdAt { get; set; }
+        public DateTime? updatedAt { get; set; }
     }
 }

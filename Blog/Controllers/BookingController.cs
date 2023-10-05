@@ -66,7 +66,17 @@ namespace Blog.Controllers
         [HttpGet("findAll")]
         public async Task<ActionResult> findAllBooking()
         {
-            var bookings = await _bookingRepo.findAllBooking();
+
+            string rawContent = string.Empty;
+            using (var reader = new StreamReader(Request.Body,
+                            encoding: Encoding.UTF8, detectEncodingFromByteOrderMarks: false))
+            {
+                rawContent = await reader.ReadToEndAsync();
+            }
+
+            BookingValue bookingValue = JsonConvert.DeserializeObject<BookingValue>(rawContent);
+
+            var bookings = await _bookingRepo.findAllBooking(bookingValue);
 
             if (bookings.Count > 0)
             {
@@ -203,5 +213,6 @@ namespace Blog.Controllers
                 return StatusCode(200, new { status = true, message = "booking has been deleted success" });
             }
         }
+
     }
 }
